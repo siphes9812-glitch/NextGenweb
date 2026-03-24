@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "Quote": {
+      "title": "Quote Request",
+      "description": "A customer's request for an IT service quote.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique ID of the quote." },
+        "customerName": { "type": "string", "description": "The name of the customer." },
+        "customerEmail": { "type": "string", "description": "The email of the customer.", "format": "email" },
+        "serviceType": { "type": "string", "description": "The type of service requested." },
+        "message": { "type": "string", "description": "Additional details from the customer." },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "completed"], "description": "The current status of the quote." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the quote was created." }
+      },
+      "required": ["customerName", "customerEmail", "serviceType", "status", "createdAt"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "A user's profile information and role.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique Firebase Auth UID." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "displayName": { "type": "string", "description": "The user's display name." },
+        "role": { "type": "string", "enum": ["admin", "client"], "description": "The user's role in the system." }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/quotes/{quoteId}": {
+      "schema": "Quote",
+      "description": "Collection of all quote requests."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles."
+    }
+  }
+}

@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: quotes
+    // Document ID: auto-generated
+    // Fields:
+    //   - customerName: string (required)
+    //   - customerEmail: string (required, email format)
+    //   - serviceType: string (required)
+    //   - message: string (optional)
+    //   - status: string (required, enum: pending, reviewed, completed)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: users
+    // Document ID: uid
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - role: string (required, enum: admin, client)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isSuperUser() {
+      return isAuthenticated() &&
+        (request.auth.token.email == "siphes9812@gmail.com" || request.auth.token.email == "siphe98@nextgen.com");
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || isSuperUser());
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidQuote(data) {
+      return hasRequiredFields(['customerName', 'customerEmail', 'serviceType', 'status', 'createdAt']) &&
+             hasOnlyAllowedFields(['customerName', 'customerEmail', 'serviceType', 'message', 'status', 'createdAt']) &&
+             data.customerName is string && data.customerName.size() > 0 && data.customerName.size() < 100 &&
+             isValidEmail(data.customerEmail) &&
+             data.serviceType is string &&
+             data.status in ['pending', 'reviewed', 'completed'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidUser(data) {
+      return hasRequiredFields(['email', 'role']) &&
+             hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'client'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /quotes/{quoteId} {
+      // Anyone can create a quote (even unauthenticated users)
+      allow create: if isValidQuote(request.resource.data);
+      // Only admins can read or update quotes
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      // Users can read their own profile, admins can read all
+      allow read: if isOwner(userId) || isAdmin();
+      // Only super user can create or update roles, but users can create their own initial profile as 'client'
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == 'client') || isSuperUser());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role) || isSuperUser());
+      allow delete: if isSuperUser();
+    }
+  }
+}
